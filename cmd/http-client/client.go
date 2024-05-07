@@ -2,7 +2,6 @@ package main
 
 import (
 	// "http/pkg/libclient"
-	"bufio"
 	"fmt"
 	"net"
     "http/pkg/libhttp"
@@ -26,13 +25,23 @@ func SendTraffic() {
 	for _, m := range messages {
         req := libhttp.NewRequest(m)
 		fmt.Fprintf(conn, string(req.AsBytes()))
-		message, err := bufio.NewReader(conn).ReadBytes('\n')
+		// message, err := bufio.NewReader(conn).ReadBytes('\n')
+  //       if err != nil {
+  //           fmt.Println(err.Error())
+  //           return
+  //       }
+		// message, err = bufio.NewReader(conn).ReadBytes('\n')
+  //       if err != nil {
+  //           fmt.Println(err.Error())
+  //           return
+  //       }
+  //       req = libhttp.FromBytes(message)
+        resp, err := libhttp.ReadHttpResponse(conn)
         if err != nil {
             fmt.Println(err.Error())
             return
         }
-        req = libhttp.FromBytes(message)
-		fmt.Printf("Message from server: %+v\n", req)
+		fmt.Printf("Message from server: %+v\n", resp.String())
 	}
 }
 

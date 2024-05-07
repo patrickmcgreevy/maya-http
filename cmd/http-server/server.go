@@ -8,6 +8,7 @@ import (
 )
 
 func handleConnection(conn net.Conn) {
+    defer conn.Close()
 	for {
 		message, err := bufio.NewReader(conn).ReadBytes('\n')
 		if err != nil {
@@ -31,7 +32,7 @@ func RecvTraffic() {
     fmt.Println("Starting server on localhost:8081")
 	ln, err := net.Listen("tcp", ":8081")
 	if err != nil {
-		fmt.Printf("failed tostart server: %s\n", err.Error())
+		fmt.Printf("failed to start server: %s\n", err.Error())
 		return
 	}
 	defer ln.Close()
