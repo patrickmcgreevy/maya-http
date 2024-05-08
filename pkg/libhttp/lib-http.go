@@ -4,12 +4,33 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net/url"
 	"strconv"
 	"strings"
 )
 
 type Request struct {
-	Message string
+	/*
+	   The HTTP method. Empty defaults to 'GET'
+	*/
+	Method string
+	/*
+	   The URL to access.
+	*/
+	URL *url.URL
+	/*
+	   Headers sent by the client
+	*/
+	Headers headers
+	/*
+	   The body of the request
+	*/
+	Body io.ReadCloser
+	// ContentLength records the length of the associated content.
+	// The value -1 indicates that the length is unknown.
+	// Values >= 0 indicate that the given number of bytes may
+	// be read from Body.
+	ContentLength int64
 }
 
 func NewRequest(msg string) Request {
@@ -47,6 +68,7 @@ type responseLine struct {
 	status      StatusCode
 }
 
+// TODO: Change this to map[string][]string
 type headers map[string]string
 
 func (h *headers) String() string {
@@ -75,8 +97,8 @@ func (line responseLine) String() string {
 func NewResponse(body string) Response {
 	return Response{
 		ResponseLine: newResponseLine(OK),
-		Headers:      map[string]string{"Server": "Maya/0.1", "Content-type": "text/html", "Content-Length": "13"},
-		Body:         "Hello, world!",
+		Headers:      map[string]string{"Server": "Maya/0.1", "Content-type": "text/html", "Content-Length": fmt.Sprint(len(body))},
+		Body:         body,
 	}
 }
 
@@ -85,7 +107,7 @@ func (r Response) String() string {
 
 	builder.WriteString(r.ResponseLine.String())
 	for k, v := range r.Headers {
-        builder.WriteString(fmt.Sprintf("%s: %s\n", k, v))
+		builder.WriteString(fmt.Sprintf("%s: %s\n", k, v))
 	}
 	builder.WriteString("\n" + r.Body)
 
@@ -102,8 +124,8 @@ func ReadHttpResponse(reader io.Reader) (Response, error) {
 	if err != nil {
 		return Response{}, err
 	}
-    response_line = response_line[0:len(response_line)-1]
-    fmt.Printf("response_line: '%s'\n", response_line)
+	response_line = response_line[0 : len(response_line)-1]
+	fmt.Printf("response_line: '%s'\n", response_line)
 	fields := strings.Fields(response_line)
 	if len(fields) != 3 {
 		return Response{}, fmt.Errorf("malformed response line: %s", response_line)
@@ -120,29 +142,29 @@ func ReadHttpResponse(reader io.Reader) (Response, error) {
 		if err != nil {
 			return Response{}, err
 		}
-        header = header[0:len(header)-1]
+		header = header[0 : len(header)-1]
 		if header == "" {
 			break
 		}
-        fmt.Printf("header: '%s'\n", header)
+		fmt.Printf("header: '%s'\n", header)
 		parts := strings.Split(header, ":")
 		if len(parts) != 2 {
 			return Response{}, fmt.Errorf("malformed header: '%s'", header)
 		}
-        resp.Headers[parts[0]] = parts[1][1:len(parts[1])]
+		resp.Headers[parts[0]] = parts[1][1:len(parts[1])]
 	}
 
-    length, ok := resp.Headers["Content-Length"]
-    if !ok {
-        return Response{}, fmt.Errorf("missing 'Content-Length' header")
-    }
-    l, err := strconv.Atoi(length)
-    if err != nil {
-        return Response{}, fmt.Errorf("malformed 'Content-Length' header: %s", length)
-    }
+	length, ok := resp.Headers["Content-Length"]
+	if !ok {
+		return Response{}, fmt.Errorf("missing 'Content-Length' header")
+	}
+	l, err := strconv.Atoi(length)
+	if err != nil {
+		return Response{}, fmt.Errorf("malformed 'Content-Length' header: %s", length)
+	}
 
 	buf := make([]byte, l)
-    _, err = io.ReadFull(buf_reader, buf)
+	_, err = io.ReadFull(buf_reader, buf)
 	if err != nil {
 		return Response{}, err
 	}
