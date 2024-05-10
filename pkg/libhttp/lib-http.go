@@ -7,7 +7,10 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+    "net/http"
 )
+
+type resp http.Response
 
 type Request struct {
 	/*
@@ -33,28 +36,63 @@ type Request struct {
 	ContentLength int64
 }
 
-func NewRequest(msg string) Request {
+func NewRequest() Request {
 	return Request{
-		Message: msg,
+        Headers: make(headers),
 	}
+}
+
+func (r *Request) FromReader(in io.Reader) error {
+    buf := bufio.NewReader(in)
+    status_line, err := buf.ReadString('\n')
+    if err != nil {
+        return err
+    }
+    fmt.Println(status_line)
+    status_line = status_line[0:len(status_line)-1]
+    parts := strings.Split(status_line, " ")
+    if len(parts) != 3 {
+        return fmt.Errorf("malformed status line: %s", status_line)
+    }
+    r.Method = parts[0]
+    r.URL, err = url.Parse(parts[1])
+    if err != nil {
+        return err
+    }
+    for {
+        header, err := buf.ReadString('\n')
+        if err != nil {
+            return err
+        }
+        header = strings.TrimSpace(header)
+        fmt.Printf("header: '%s'\n", header)
+        if header == "" {
+            fmt.Println("headers done")
+            break
+        }
+        key, value, found := strings.Cut(header, ":")
+		if !found {
+			return fmt.Errorf("malformed header: '%s'", header)
+		}
+        r.Headers[key] = value[1:]
+    }
+
+    return nil
 }
 
 func (r Request) AsBytes() []byte {
-	b := make([]byte, 0)
-	b = append(b, []byte(r.Message)...)
-	b = append(b, '\n')
-
-	return b
-}
-
-func FromBytes(buf []byte) Request {
-	return Request{
-		Message: string(buf),
-	}
+    return []byte(r.String())
 }
 
 func (r Request) String() string {
-	return string(r.AsBytes())
+    var str strings.Builder
+
+    str.WriteString(fmt.Sprintf("%s %s HTTP/1.1\n", r.Method, r.URL.String()))
+    for k, v := range r.Headers {
+        str.WriteString(fmt.Sprintf("%s: %s\n", k,v))
+    }
+
+    return str.String()
 }
 
 type Response struct {
