@@ -7,10 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-    "net/http"
 )
-
-type resp http.Response
 
 type Request struct {
 	/*
@@ -38,67 +35,68 @@ type Request struct {
 
 func NewRequest() Request {
 	return Request{
-        Headers: make(headers),
+		Headers: make(headers),
 	}
 }
 
 func (r *Request) FromReader(in io.Reader) error {
-    buf := bufio.NewReader(in)
-    status_line, err := buf.ReadString('\n')
-    if err != nil {
-        return err
-    }
-    fmt.Println(status_line)
-    status_line = status_line[0:len(status_line)-1]
-    parts := strings.Split(status_line, " ")
-    if len(parts) != 3 {
-        return fmt.Errorf("malformed status line: %s", status_line)
-    }
-    r.Method = parts[0]
-    r.URL, err = url.Parse(parts[1])
-    if err != nil {
-        return err
-    }
-    for {
-        header, err := buf.ReadString('\n')
-        if err != nil {
-            return err
-        }
-        header = strings.TrimSpace(header)
-        fmt.Printf("header: '%s'\n", header)
-        if header == "" {
-            fmt.Println("headers done")
-            break
-        }
-        key, value, found := strings.Cut(header, ":")
+	buf := bufio.NewReader(in)
+	status_line, err := buf.ReadString('\n')
+	if err != nil {
+		return err
+	}
+	fmt.Println(status_line)
+	status_line = status_line[0 : len(status_line)-1]
+	parts := strings.Split(status_line, " ")
+	if len(parts) != 3 {
+		return fmt.Errorf("malformed status line: %s", status_line)
+	}
+	r.Method = parts[0]
+	r.URL, err = url.Parse(parts[1])
+	if err != nil {
+		return err
+	}
+	for {
+		header, err := buf.ReadString('\n')
+		if err != nil {
+			return err
+		}
+		header = strings.TrimSpace(header)
+		fmt.Printf("header: '%s'\n", header)
+		if header == "" {
+			fmt.Println("headers done")
+			break
+		}
+		key, value, found := strings.Cut(header, ":")
 		if !found {
 			return fmt.Errorf("malformed header: '%s'", header)
 		}
-        r.Headers[key] = value[1:]
-    }
+		r.Headers[key] = []string{value[1:]}
+	}
 
-    return nil
+	return nil
 }
 
 func (r Request) AsBytes() []byte {
-    return []byte(r.String())
+	return []byte(r.String())
 }
 
 func (r Request) String() string {
-    var str strings.Builder
+	var str strings.Builder
 
-    str.WriteString(fmt.Sprintf("%s %s HTTP/1.1\n", r.Method, r.URL.String()))
-    for k, v := range r.Headers {
-        str.WriteString(fmt.Sprintf("%s: %s\n", k,v))
-    }
+	str.WriteString(fmt.Sprintf("%s %s HTTP/1.1\n", r.Method, r.URL.String()))
+	for k, v := range r.Headers {
+		str.WriteString(fmt.Sprintf("%s: %s\n", k, v))
+	}
 
-    return str.String()
+	return str.String()
 }
 
 type Response struct {
-	ResponseLine responseLine
-	Headers      headers
-	Body         string
+	ResponseLine  responseLine
+	Headers       headers
+	Body          string
+	ContentLength int
 }
 
 type responseLine struct {
@@ -106,8 +104,8 @@ type responseLine struct {
 	status      StatusCode
 }
 
-// TODO: Change this to map[string][]string
-type headers map[string]string
+type headerList []string
+type headers map[string]headerList
 
 func (h *headers) String() string {
 	var str strings.Builder
@@ -117,6 +115,10 @@ func (h *headers) String() string {
 	}
 
 	return str.String()
+}
+
+func (hl headerList) String() string {
+    return strings.Join(hl, ", ")
 }
 
 func newResponseLine(status StatusCode) responseLine {
@@ -135,8 +137,13 @@ func (line responseLine) String() string {
 func NewResponse(body string) Response {
 	return Response{
 		ResponseLine: newResponseLine(OK),
-		Headers:      map[string]string{"Server": "Maya/0.1", "Content-type": "text/html", "Content-Length": fmt.Sprint(len(body))},
-		Body:         body,
+		Headers: map[string]headerList{
+			"Server":       {"Maya/0.1"},
+			"Content-type": {"text/html"},
+			// "Content-Length": {fmt.Sprint(len(body))},
+		},
+		Body:          body,
+		ContentLength: len(body),
 	}
 }
 
@@ -147,6 +154,7 @@ func (r Response) String() string {
 	for k, v := range r.Headers {
 		builder.WriteString(fmt.Sprintf("%s: %s\n", k, v))
 	}
+    builder.WriteString(fmt.Sprintf("Content-length: %d\n", r.ContentLength))
 	builder.WriteString("\n" + r.Body)
 
 	return builder.String()
@@ -156,7 +164,7 @@ func ReadHttpResponse(reader io.Reader) (Response, error) {
 	var resp Response
 
 	buf_reader := bufio.NewReader(reader)
-	resp.Headers = make(map[string]string)
+	resp.Headers = make(map[string]headerList)
 
 	response_line, err := buf_reader.ReadString('\n')
 	if err != nil {
@@ -189,14 +197,14 @@ func ReadHttpResponse(reader io.Reader) (Response, error) {
 		if len(parts) != 2 {
 			return Response{}, fmt.Errorf("malformed header: '%s'", header)
 		}
-		resp.Headers[parts[0]] = parts[1][1:len(parts[1])]
+		resp.Headers[parts[0]] = []string{parts[1][1:len(parts[1])]}
 	}
 
 	length, ok := resp.Headers["Content-Length"]
 	if !ok {
 		return Response{}, fmt.Errorf("missing 'Content-Length' header")
 	}
-	l, err := strconv.Atoi(length)
+	l, err := strconv.Atoi(length[0])
 	if err != nil {
 		return Response{}, fmt.Errorf("malformed 'Content-Length' header: %s", length)
 	}
