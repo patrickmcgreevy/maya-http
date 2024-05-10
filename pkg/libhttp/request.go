@@ -70,7 +70,11 @@ func (r *Request) FromReader(in io.Reader) error {
 		if !found {
 			return fmt.Errorf("malformed header: '%s'", header)
 		}
-		r.Headers[key] = []string{value[1:]}
+		if v, ok := r.Headers[key]; ok {
+            r.Headers[key] = append(v, value[1:])
+		} else {
+			r.Headers[key] = []string{value[1:]}
+		}
 	}
 
 	return nil

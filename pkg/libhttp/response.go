@@ -52,6 +52,7 @@ func (line responseLine) String() string {
 }
 
 func NewResponse(body string) Response {
+    fmt.Printf("in NewResponse. body='%s'\n", body)
 	return Response{
 		ResponseLine: newResponseLine(OK),
 		Headers: map[string]headerList{
@@ -71,7 +72,7 @@ func (r Response) String() string {
 	for k, v := range r.Headers {
 		builder.WriteString(fmt.Sprintf("%s: %s\n", k, v))
 	}
-    builder.WriteString(fmt.Sprintf("Content-length: %d\n", r.ContentLength))
+    builder.WriteString(fmt.Sprintf("Content-Length: %d\n", r.ContentLength))
 	builder.WriteString("\n" + r.Body)
 
 	return builder.String()
