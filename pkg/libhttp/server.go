@@ -26,7 +26,7 @@ type ResponseWriter interface {
 }
 
 type SimpleResponseWriter struct {
-    Response
+    *Response
 	buf    *[]byte
 	writer io.WriteCloser
 }
@@ -43,33 +43,27 @@ func NewResponseWriter(w io.WriteCloser) SimpleResponseWriter {
 	buf := make([]byte, 0, 100)
 
 	return SimpleResponseWriter{
+        Response: NewResponse(""),
 		buf:    &buf,
 		writer: w,
 	}
 }
 
-// func(rw *SimpleResponseWriter) Header() headers {
-//     return rw.
-// }
-// func(rw *SimpleResponseWriter)
-
 func (rw *SimpleResponseWriter) Write(b []byte) (int, error) {
 	fmt.Printf("in ResponseWriter.Write. b='%s'\n", string(b))
-	if rw.buf == nil {
-		return 0, fmt.Errorf("cannot use a zero-value ResponseWriter")
-	}
-	*rw.buf = append(*rw.buf, b...)
-	fmt.Println("buf:", string(*rw.buf))
+    rw.setBody(string(b))
+    fmt.Println("body:", rw.body)
 
 	return len(b), nil
 }
 
 func (rw *SimpleResponseWriter) Close() {
 	defer rw.writer.Close()
-	fmt.Printf("in ResponseWriter.Close. buf='%s'\n", string(*rw.buf))
-	resp := NewResponse(string(*rw.buf))
-	fmt.Println("in ResponseWriter.Close.", "resp=", resp)
-	_, err := rw.writer.Write([]byte(resp.String()))
+	fmt.Printf("in ResponseWriter.Close. body='%s'\n", rw.body)
+    // rw.Response.body = string(*rw.buf)
+	// resp := NewResponse(string(*rw.buf))
+	fmt.Println("in ResponseWriter.Close.", "resp=", rw.Response)
+	_, err := rw.writer.Write([]byte(rw.Response.String()))
 	if err != nil {
 		fmt.Printf("error: '%s'", err.Error())
 	}
@@ -126,7 +120,7 @@ func (s *SimpleServer) handleConnection(conn net.Conn) {
 	// call the correct handler and pass in respWriter and req
 	handler, err = s.getHandler(req.URL.Path)
 	if err != nil {
-		// TODO: ResponseWriter needs to have methods for setting status codes and headers
+        error404(&respWriter, &req)
 		fmt.Println(err.Error())
 		return
 	}
@@ -149,4 +143,10 @@ func (h FileHandler) ServeHTTP(rw ResponseWriter, req *Request) {
 		return
 	}
 	rw.Write(dat)
+}
+
+func error404(rw ResponseWriter, req *Request) {
+    fmt.Println("in error404")
+    rw.WriteHeader(404)
+    fmt.Fprintf(rw, "Error 404: %s not found", req.URL.Path)
 }

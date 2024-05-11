@@ -23,6 +23,7 @@ type responseLine struct {
 type headerList []string
 type headers map[string]headerList
 
+// TODO make all of these headers receiver instead of pointer
 func (h *headers) String() string {
 	var str strings.Builder
 
@@ -83,9 +84,9 @@ func (line responseLine) String() string {
 	return str.String()
 }
 
-func NewResponse(body string) Response {
+func NewResponse(body string) *Response {
 	fmt.Printf("in NewResponse. body='%s'\n", body)
-	return Response{
+	return &Response{
 		responseLine: newResponseLine(OK),
 		headers: map[string]headerList{
 			"Server":       {"Maya/0.1"},
@@ -96,12 +97,20 @@ func NewResponse(body string) Response {
 	}
 }
 
-func (r Response) Header() headers {
+func (r *Response) setBody(body string) {
+    r.body = string(body)
+    r.contentLength = len(r.body)
+}
+
+func (r *Response) Header() headers {
     return r.headers
 }
 
-func (r Response) WriteHeader(statusCode int) {
+func (r *Response) WriteHeader(statusCode int) {
+    fmt.Println("in writeheader")
+    fmt.Println(r.responseLine.String())
     r.responseLine = newResponseLine(StatusCode(statusCode))
+    fmt.Println(r.responseLine.String())
 }
 
 func (r Response) String() string {
